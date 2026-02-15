@@ -20,7 +20,9 @@ COPY . /var/www/html/
 
 # 2. Copy and set up the robust entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Fix potential Windows CRLF issues and make executable
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # 3. Use the custom entrypoint script to start Apache (handles PORT and cleanup)
 ENTRYPOINT ["docker-entrypoint.sh"]

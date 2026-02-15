@@ -1,35 +1,38 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
+# Log everything to stdout
+set -x
+
+echo "🚀 Starting application setup..."
+
 # 1. 🛠️ Handle Railway Dynamic Port
-# Railway provides a PORT environment variable. We must update Apache to listen on it.
-if [ -n "$PORT" ]; then
-    echo "Configuring Apache to listen on PORT $PORT..."
-    sed -i "s/Listen 80/Listen ${PORT}/" /etc/apache2/ports.conf
-    sed -i "s/:80/:${PORT}/" /etc/apache2/sites-available/000-default.conf
-    sed -i "s/:80/:${PORT}/" /etc/apache2/sites-enabled/000-default.conf || true
-else
-    echo "No PORT environment variable found, defaulting to 80."
+# Set PORT to 80 if not defined
+PORT=${PORT:-80}
+echo "Using PORT: $PORT"
+
+# Replace port in configuration files
+sed -i "s/Listen 80/Listen ${PORT}/g" /etc/apache2/ports.conf
+sed -i "s/:80/:${PORT}/g" /etc/apache2/sites-available/000-default.conf
+if [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
+    sed -i "s/:80/:${PORT}/g" /etc/apache2/sites-enabled/000-default.conf
 fi
 
-# 2. 🧹 MPM Cleanup (Fix "More than one MPM loaded" error)
+# 2. 🧹 MPM Cleanup
 echo "Cleaning up Apache MPMs..."
-rm -f /etc/apache2/mods-enabled/mpm_event.load
-rm -f /etc/apache2/mods-enabled/mpm_event.conf
-rm -f /etc/apache2/mods-enabled/mpm_worker.load
-rm -f /etc/apache2/mods-enabled/mpm_worker.conf
-
-# Ensure Prefork is enabled (best for PHP)
-if [ ! -e /etc/apache2/mods-enabled/mpm_prefork.load ]; then
-    ln -s /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load || true
-fi
-if [ ! -e /etc/apache2/mods-enabled/mpm_prefork.conf ]; then
-    ln -s /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf || true
-fi
+# Disable event and worker if enabled
+a2dismod mpm_event || true
+a2dismod mpm_worker || true
+# Force removal of config files to be safe
+rm -f /etc/apache2/mods-enabled/mpm_event.*
+rm -f /etc/apache2/mods-enabled/mpm_worker.*
+# Enable prefork
+a2enmod mpm_prefork
 
 # 3. ⚙️ Optimize Configuration
+# Suppress ServerName warning
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # 4. 🚀 Start Apache
-echo "Starting Apache..."
+echo "Starting Apache in foreground..."
 exec apache2-foreground
