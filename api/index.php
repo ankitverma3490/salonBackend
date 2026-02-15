@@ -3,18 +3,24 @@
  * 🚀 SALON BOOKING API - MAIN ENTRY POINT
  */
 
+// 0. ==========================================
+// 🛡️ CRITIAL: SUPPRESS ERRORS IMMEDIATELY
+// ==========================================
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
+
 // 1. ==========================================
-// 🚀 CORS (PERMISSIVE FOR DEVELOPMENT)
+// 🚀 CORS (ROBUST SETUP)
 // ==========================================
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
-// Allow any localhost or 127.0.0.1 origin for local development
+// If Origin header is present, echo it back (safest for development/production mix)
 if (!empty($origin)) {
     header("Access-Control-Allow-Origin: $origin");
     header('Access-Control-Allow-Credentials: true');
-}
-else {
+} else {
+    // If no origin (e.g. Postman), allow *
     header("Access-Control-Allow-Origin: *");
 }
 
@@ -24,7 +30,9 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header('Access-Control-Max-Age: 86400');
-    http_response_code(204);
+    header('Content-Length: 0');
+    header('Content-Type: text/plain');
+    http_response_code(200); // 204 can sometimes cause issues with some proxies
     exit();
 }
 
