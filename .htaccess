@@ -1,0 +1,24 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Handle CORS OPTIONS preflight at the server level (faster response)
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=200,L]
+
+    # Rewrite /backend/api/xyz -> api/xyz
+    RewriteRule ^backend/api/(.*)$ api/$1 [L,QSA]
+    
+    # Route all other API requests to api/index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/(.*)$ api/index.php [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Force CORS headers on all responses, including 404s and 500s
+    # This prevents "CORS error" masking the actual error
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma"
+    Header set Access-Control-Allow-Credentials "true"
+</IfModule>
