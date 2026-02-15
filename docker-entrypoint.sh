@@ -7,9 +7,18 @@ set -x
 echo "🚀 Starting detailed application setup..."
 
 # 1. 🛠️ Handle Railway Dynamic Port
-# Use the PORT environment variable provided by Railway (defaults to 80)
-PORT=${PORT:-80}
-echo "Configuring Apache to listen on PORT: $PORT"
+# Use the PORT environment variable provided by Railway (defaults to 8080)
+# railway often defaults to 8080 or respects the user's PORT variable
+RAW_PORT=${PORT:-8080}
+# Sanitize PORT to ensure it only contains digits (strips potential hidden chars)
+PORT=$(echo "$RAW_PORT" | tr -cd '0-9')
+
+# Fallback if sanitization results in empty string
+if [ -z "$PORT" ]; then
+    PORT=8080
+fi
+
+echo "Configuring Apache to listen on PORT: $PORT (from raw: '$RAW_PORT')"
 
 # Overwrite ports.conf to simple Listen directive
 echo "Listen $PORT" > /etc/apache2/ports.conf

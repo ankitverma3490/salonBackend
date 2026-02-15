@@ -28,4 +28,4 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && \
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Note: EXPOSE is informational only, the entrypoint handles the actual PORT
-EXPOSE 80
+EXPOSE 8080
