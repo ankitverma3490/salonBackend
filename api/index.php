@@ -13,26 +13,18 @@ error_reporting(E_ALL);
 // 🚀 CORS (ROBUST SETUP)
 // ==========================================
 
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-// If Origin header is present, echo it back (safest for development/production mix)
-if (!empty($origin)) {
-    header("Access-Control-Allow-Origin: $origin");
-    header('Access-Control-Allow-Credentials: true');
-} else {
-    // If no origin (e.g. Postman), allow *
-    header("Access-Control-Allow-Origin: *");
-}
-
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma');
+// 1. ==========================================
+// 🚀 CORS HEADERS HANDLED BY APACHE (.htaccess)
+// ==========================================
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    // Apache adds the CORS headers automatically
+    // We just need to respond with 200 OK and exit
     header('Access-Control-Max-Age: 86400');
     header('Content-Length: 0');
     header('Content-Type: text/plain');
-    http_response_code(200); // 204 can sometimes cause issues with some proxies
+    http_response_code(200); 
     exit();
 }
 
