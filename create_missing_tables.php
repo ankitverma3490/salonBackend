@@ -107,8 +107,12 @@ try {
         'platform_orders' => "CREATE TABLE IF NOT EXISTS platform_orders (
             id VARCHAR(36) PRIMARY KEY,
             user_id VARCHAR(36) NOT NULL,
+            guest_email VARCHAR(255),
+            guest_name VARCHAR(255),
             total_amount DECIMAL(10,2) NOT NULL,
-            status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
+            items JSON,
+            shipping_address JSON,
+            status ENUM('placed', 'pending', 'processing', 'completed', 'cancelled') DEFAULT 'placed',
             payment_method VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -140,13 +144,17 @@ try {
         'notifications' => "CREATE TABLE IF NOT EXISTS notifications (
             id VARCHAR(36) PRIMARY KEY,
             user_id VARCHAR(36) NOT NULL,
+            salon_id VARCHAR(36),
             title VARCHAR(255) NOT NULL,
             message TEXT,
             type VARCHAR(50),
+            link TEXT,
             is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE,
             INDEX idx_user_id (user_id),
+            INDEX idx_salon_id (salon_id),
             INDEX idx_is_read (is_read)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
@@ -217,25 +225,31 @@ try {
         'booking_reviews' => "CREATE TABLE IF NOT EXISTS booking_reviews (
             id VARCHAR(36) PRIMARY KEY,
             booking_id VARCHAR(36) NOT NULL,
+            salon_id VARCHAR(36),
             rating INT NOT NULL,
             comment TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
-            INDEX idx_booking_id (booking_id)
+            FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE,
+            INDEX idx_booking_id (booking_id),
+            INDEX idx_salon_id (salon_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         'messages' => "CREATE TABLE IF NOT EXISTS messages (
             id VARCHAR(36) PRIMARY KEY,
             sender_id VARCHAR(36) NOT NULL,
             recipient_id VARCHAR(36) NOT NULL,
+            salon_id VARCHAR(36),
             subject VARCHAR(255),
             message TEXT,
             is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE,
             INDEX idx_sender (sender_id),
-            INDEX idx_recipient (recipient_id)
+            INDEX idx_recipient (recipient_id),
+            INDEX idx_salon_id (salon_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         'reminders' => "CREATE TABLE IF NOT EXISTS reminders (
@@ -347,12 +361,15 @@ try {
         'customer_product_purchases' => "CREATE TABLE IF NOT EXISTS customer_product_purchases (
             id VARCHAR(36) PRIMARY KEY,
             user_id VARCHAR(36) NOT NULL,
+            salon_id VARCHAR(36),
             product_id VARCHAR(36),
             quantity INT DEFAULT 1,
             total_amount DECIMAL(10,2) NOT NULL,
             purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_user_id (user_id)
+            FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE,
+            INDEX idx_user_id (user_id),
+            INDEX idx_salon_id (salon_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         'admin_activity_logs' => "CREATE TABLE IF NOT EXISTS admin_activity_logs (

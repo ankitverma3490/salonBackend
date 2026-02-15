@@ -1,33 +1,75 @@
 <?php
 // Customer Records routes
 
-// GET /api/customer_records/:userId/salon/:salonId - Get custom profile
-if ($method === 'GET' && count($uriParts) === 4 && $uriParts[2] === 'salon') {
+// GET /api/customer_records/:userId/profile - Get consolidated health profile
+if ($method === 'GET' && count($uriParts) === 3 && $uriParts[2] === 'profile') {
     $userData = Auth::getUserFromToken();
     if (!$userData) {
         sendResponse(['error' => 'Unauthorized'], 401);
     }
 
     $userId = $uriParts[1];
-    $salonId = $uriParts[3];
 
-    // Check permission (user themselves or salon staff)
-    $hasAccess = ($userData['user_id'] === $userId);
-    if (!$hasAccess) {
-        $stmt = $db->prepare("SELECT id FROM user_roles WHERE user_id = ? AND salon_id = ?");
-        $stmt->execute([$userData['user_id'], $salonId]);
-        $hasAccess = (bool)$stmt->fetch();
-    }
-
-    if (!$hasAccess) {
+    // Check permission (user themselves OR salon-staff with shared customer?)
+    // For hub, we usually only fetch for the user themselves.
+    if ($userData['user_id'] !== $userId) {
+        // Only allow staff/admin if they have a shared salon relation? 
+        // For simplicity of the hub, let's keep it to self-access.
         sendResponse(['error' => 'Forbidden'], 403);
     }
 
-    $stmt = $db->prepare("SELECT * FROM customer_salon_profiles WHERE user_id = ? AND salon_id = ?");
-    $stmt->execute([$userId, $salonId]);
-    $profile = $stmt->fetch();
+    // Consolidate health data: latest skin_type and unique allergy_records
+    $stmt = $db->prepare("
+        SELECT skin_type, allergy_records, medical_conditions, updated_at 
+        FROM customer_salon_profiles 
+        WHERE user_id = ? 
+        ORDER BY updated_at DESC
+    ");
+    $stmt->execute([$userId]);
+    $profiles = $stmt->fetchAll();
 
-    sendResponse(['profile' => $profile]);
+    $consolidated = [
+        'skin_type' => 'Not Specified',
+        'allergies' => 'None Reported',
+        'medical_conditions' => 'None Reported',
+        'records_count' => count($profiles)
+    ];
+
+    if (!empty($profiles)) {
+        // Take latest skin type
+        foreach ($profiles as $p) {
+            if (!empty($p['skin_type'])) {
+                $consolidated['skin_type'] = $p['skin_type'];
+                break;
+            }
+        }
+
+        // Aggregate unique allergies
+        $allAllergies = [];
+        $allConditions = [];
+        foreach ($profiles as $p) {
+            if (!empty($p['allergy_records'])) {
+                $parts = array_map('trim', explode(',', $p['allergy_records']));
+                $allAllergies = array_merge($allAllergies, $parts);
+            }
+            if (!empty($p['medical_conditions'])) {
+                $parts = array_map('trim', explode(',', $p['medical_conditions']));
+                $allConditions = array_merge($allConditions, $parts);
+            }
+        }
+
+        $uniqueAllergies = array_unique(array_filter($allAllergies));
+        if (!empty($uniqueAllergies)) {
+            $consolidated['allergies'] = implode(', ', $uniqueAllergies);
+        }
+
+        $uniqueConditions = array_unique(array_filter($allConditions));
+        if (!empty($uniqueConditions)) {
+            $consolidated['medical_conditions'] = implode(', ', $uniqueConditions);
+        }
+    }
+
+    sendResponse(['profile' => $consolidated]);
 }
 
 // Ensure tables exist
@@ -158,7 +200,7 @@ if ($method === 'POST' && count($uriParts) === 1) {
     if (is_array($skinIssues))
         $skinIssues = implode(', ', $skinIssues);
 
-    $allergies = $data['allergies'] ?? null;
+    $allergies = $data['allergy_records'] ?? $data['allergies'] ?? null;
     if (is_array($allergies))
         $allergies = implode(', ', $allergies);
 
@@ -184,7 +226,7 @@ if ($method === 'POST' && count($uriParts) === 1) {
         Auth::generateUuid(), // Keep Auth::generateUuid() for the ID
         $userId,
         $salonId,
-        $data['date_of_birth'] ?? null,
+        (!empty($data['date_of_birth']) ? $data['date_of_birth'] : null),
         $data['skin_type'] ?? null,
         $skinIssues,
         $allergies,
@@ -295,14 +337,14 @@ if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'treatments
         $userId,
         $salonId,
         $data['service_name_manual'] ?? null,
-        $data['record_date'] ?? null,
+        (!empty($data['record_date']) ? $data['record_date'] : null),
         $data['treatment_details'] ?? null,
         $data['products_used'] ?? null,
         $data['skin_reaction'] ?? null,
         $data['improvement_notes'] ?? null,
         $data['recommended_next_treatment'] ?? null,
         $data['post_treatment_instructions'] ?? null,
-        $data['follow_up_reminder_date'] ?? null,
+        (!empty($data['follow_up_reminder_date']) ? $data['follow_up_reminder_date'] : null),
         $data['marketing_notes'] ?? null,
         $data['before_photo_url'] ?? null,
         $data['before_photo_public_id'] ?? null,
@@ -368,6 +410,29 @@ if ($method === 'GET' && count($uriParts) === 2 && $uriParts[1] === 'transformat
     catch (Exception $e) {
         sendResponse(['error' => 'Failed to fetch transformations: ' . $e->getMessage()], 500);
     }
+}
+
+// GET /api/customer_records/:userId/salon/:salonId - Get customer profile for a specific salon
+if ($method === 'GET' && count($uriParts) === 4 && $uriParts[2] === 'salon') {
+    $userId = $uriParts[1];
+    $salonId = $uriParts[3];
+
+    $stmt = $db->prepare("
+        SELECT * FROM customer_salon_profiles 
+        WHERE user_id = ? AND salon_id = ?
+    ");
+    $stmt->execute([$userId, $salonId]);
+    $profile = $stmt->fetch();
+
+    if ($profile) {
+        // Parse text fields that might contain comma-separated values
+        // Keep them as strings for now, frontend will handle parsing if needed
+        $profile['skin_issues'] = $profile['skin_issues'] ?? '';
+        $profile['allergy_records'] = $profile['allergy_records'] ?? '';
+        $profile['medical_conditions'] = $profile['medical_conditions'] ?? '';
+    }
+
+    sendResponse(['profile' => $profile]);
 }
 
 sendResponse(['error' => 'Customer records route not found'], 404);

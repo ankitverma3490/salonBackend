@@ -18,6 +18,69 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $pathParts = explode('/', trim($path, '/'));
 
 try {
+    // GET /api/customer_records/{userId}/profile - Get consolidated health profile
+    if ($method === 'GET' && isset($pathParts[3]) && $pathParts[4] === 'profile') {
+        $userId = $pathParts[3];
+
+        // Permission check
+        if ($auth['user_id'] !== $userId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Forbidden']);
+            exit;
+        }
+
+        // Consolidate health data
+        $stmt = $pdo->prepare("
+            SELECT skin_type, allergy_records, medical_conditions, updated_at 
+            FROM customer_salon_profiles 
+            WHERE user_id = ? 
+            ORDER BY updated_at DESC
+        ");
+        $stmt->execute([$userId]);
+        $profiles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $consolidated = [
+            'skin_type' => 'Not Specified',
+            'allergies' => 'None Reported',
+            'medical_conditions' => 'None Reported',
+            'records_count' => count($profiles)
+        ];
+
+        if (!empty($profiles)) {
+            foreach ($profiles as $p) {
+                if (!empty($p['skin_type']) && $consolidated['skin_type'] === 'Not Specified') {
+                    $consolidated['skin_type'] = $p['skin_type'];
+                }
+            }
+
+            $allAllergies = [];
+            $allConditions = [];
+            foreach ($profiles as $p) {
+                if (!empty($p['allergy_records'])) {
+                    $parts = array_map('trim', explode(',', $p['allergy_records']));
+                    $allAllergies = array_merge($allAllergies, $parts);
+                }
+                if (!empty($p['medical_conditions'])) {
+                    $parts = array_map('trim', explode(',', $p['medical_conditions']));
+                    $allConditions = array_merge($allConditions, $parts);
+                }
+            }
+
+            $uniqueAllergies = array_unique(array_filter($allAllergies));
+            if (!empty($uniqueAllergies)) {
+                $consolidated['allergies'] = implode(', ', $uniqueAllergies);
+            }
+
+            $uniqueConditions = array_unique(array_filter($allConditions));
+            if (!empty($uniqueConditions)) {
+                $consolidated['medical_conditions'] = implode(', ', $uniqueConditions);
+            }
+        }
+
+        echo json_encode(['success' => true, 'data' => ['profile' => $consolidated]]);
+        exit;
+    }
+
     // GET /api/customer_records/{userId}/salon/{salonId} - Get customer profile for a salon
     if ($method === 'GET' && isset($pathParts[3]) && $pathParts[4] === 'salon' && isset($pathParts[5])) {
         $userId = $pathParts[3];
@@ -31,11 +94,10 @@ try {
         $profile = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($profile) {
-            // Parse JSON fields
+            // Mapping allergy_records to allergies for JSON backward compatibility if needed
+            $profile['allergies'] = json_decode($profile['allergy_records'] ?? '[]');
             $profile['skin_issues'] = json_decode($profile['skin_issues'] ?? '[]');
-            $profile['allergies'] = json_decode($profile['allergies'] ?? '[]');
             $profile['medical_conditions'] = json_decode($profile['medical_conditions'] ?? '[]');
-            $profile['preferences'] = json_decode($profile['preferences'] ?? '{}');
         }
 
         echo json_encode(['success' => true, 'data' => $profile]);
@@ -60,10 +122,19 @@ try {
         $stmt->execute([$userId, $salonId]);
         $existing = $stmt->fetch();
 
-        $skinIssues = json_encode($data['skin_issues'] ?? []);
-        $allergies = json_encode($data['allergies'] ?? []);
-        $medicalConditions = json_encode($data['medical_conditions'] ?? []);
-        $preferences = json_encode($data['preferences'] ?? new stdClass());
+        // Convert arrays to comma-separated strings for DB compatibility with the new schema (which uses TEXT for these)
+        // OR keep as JSON if we strictly want JSON. The new schema seems to use TEXT and the routed API uses implode.
+        $skinIssues = $data['skin_issues'] ?? [];
+        if (is_array($skinIssues))
+            $skinIssues = implode(', ', $skinIssues);
+
+        $allergies = $data['allergy_records'] ?? $data['allergies'] ?? [];
+        if (is_array($allergies))
+            $allergies = implode(', ', $allergies);
+
+        $medicalConditions = $data['medical_conditions'] ?? [];
+        if (is_array($medicalConditions))
+            $medicalConditions = implode(', ', $medicalConditions);
 
         if ($existing) {
             // Update
@@ -72,42 +143,41 @@ try {
                     date_of_birth = ?,
                     skin_type = ?,
                     skin_issues = ?,
-                    allergies = ?,
+                    allergy_records = ?,
                     medical_conditions = ?,
-                    preferences = ?,
                     notes = ?,
                     updated_at = NOW()
                 WHERE user_id = ? AND salon_id = ?
             ");
             $stmt->execute([
-                $data['date_of_birth'] ?? null,
+                (!empty($data['date_of_birth']) ? $data['date_of_birth'] : null),
                 $data['skin_type'] ?? null,
                 $skinIssues,
                 $allergies,
                 $medicalConditions,
-                $preferences,
                 $data['notes'] ?? null,
                 $userId,
                 $salonId
             ]);
 
             echo json_encode(['success' => true, 'message' => 'Profile updated']);
-        } else {
+        }
+        else {
             // Insert
             $stmt = $pdo->prepare("
                 INSERT INTO customer_salon_profiles 
-                (user_id, salon_id, date_of_birth, skin_type, skin_issues, allergies, medical_conditions, preferences, notes)
+                (id, user_id, salon_id, date_of_birth, skin_type, skin_issues, allergy_records, medical_conditions, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
+                sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000, mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)),
                 $userId,
                 $salonId,
-                $data['date_of_birth'] ?? null,
+                (!empty($data['date_of_birth']) ? $data['date_of_birth'] : null),
                 $data['skin_type'] ?? null,
                 $skinIssues,
                 $allergies,
                 $medicalConditions,
-                $preferences,
                 $data['notes'] ?? null
             ]);
 
@@ -177,13 +247,14 @@ try {
                 $data['improvement_notes'] ?? null,
                 $observations,
                 $data['next_treatment_recommendation'] ?? null,
-                $data['follow_up_date'] ?? null,
+                (!empty($data['follow_up_date']) ? $data['follow_up_date'] : null),
                 $data['staff_notes'] ?? null,
                 $bookingId
             ]);
 
             echo json_encode(['success' => true, 'message' => 'Treatment record updated']);
-        } else {
+        }
+        else {
             // Insert
             $stmt = $pdo->prepare("
                 INSERT INTO treatment_records 
@@ -201,7 +272,7 @@ try {
                 $data['improvement_notes'] ?? null,
                 $observations,
                 $data['next_treatment_recommendation'] ?? null,
-                $data['follow_up_date'] ?? null,
+                (!empty($data['follow_up_date']) ? $data['follow_up_date'] : null),
                 $data['staff_notes'] ?? null
             ]);
 
@@ -246,7 +317,8 @@ try {
     http_response_code(404);
     echo json_encode(['success' => false, 'error' => 'Endpoint not found']);
 
-} catch (Exception $e) {
+}
+catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
