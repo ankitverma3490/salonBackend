@@ -30,6 +30,5 @@ Options -Indexes
 
 # Protect sensitive files
 <FilesMatch "^(config\.php|Database\.php|Auth\.php)$">
-Order allow, deny
-Deny from all
+    Require all denied
 </FilesMatch>
