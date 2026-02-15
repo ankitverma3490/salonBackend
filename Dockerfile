@@ -8,9 +8,13 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # Install necessary PHP extensions
 RUN docker-php-ext-install mysqli pdo pdo_mysql
 
-# Enable Apache modules and configuration
+# Enable Apache modules and configure directory permissions
 RUN a2enmod rewrite headers && \
-    sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+    echo '<Directory /var/www/html>' >> /etc/apache2/apache2.conf && \
+    echo '    Options Indexes FollowSymLinks' >> /etc/apache2/apache2.conf && \
+    echo '    AllowOverride All' >> /etc/apache2/apache2.conf && \
+    echo '    Require all granted' >> /etc/apache2/apache2.conf && \
+    echo '</Directory>' >> /etc/apache2/apache2.conf
 
 # Copy application source code
 COPY . /var/www/html/
