@@ -15,11 +15,15 @@ RUN echo '<Directory /var/www/html>' >> /etc/apache2/apache2.conf && \
     echo '    Require all granted' >> /etc/apache2/apache2.conf && \
     echo '</Directory>' >> /etc/apache2/apache2.conf
 
-# Copy application source code
+# 1. Copy application source code
 COPY . /var/www/html/
 
-# Clean up MPMs and start Apache at runtime (inlined for reliability)
-# We remove any conflicting MPMs and ensure prefork is enabled before starting
-CMD ["/bin/sh", "-c", "rm -f /etc/apache2/mods-enabled/mpm_event.load /etc/apache2/mods-enabled/mpm_event.conf /etc/apache2/mods-enabled/mpm_worker.load /etc/apache2/mods-enabled/mpm_worker.conf && a2enmod mpm_prefork && echo 'ServerName localhost' >> /etc/apache2/apache2.conf && exec apache2-foreground"]
+# 2. Copy and set up the robust entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# 3. Use the custom entrypoint script to start Apache (handles PORT and cleanup)
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Note: EXPOSE is informational only, the entrypoint handles the actual PORT
 EXPOSE 80
