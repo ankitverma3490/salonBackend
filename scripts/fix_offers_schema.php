@@ -39,17 +39,26 @@ try {
         }
     }
 
-    // Also check for name mismatch (discount_type vs type, discount_value vs value)
-    // The API uses 'type' and 'value', but create_missing_tables.php used 'discount_type' and 'discount_value'
+    // Rename columns if they exist (to keep data if necessary)
     if (in_array('discount_type', $existingColumns) && !in_array('type', $existingColumns)) {
         echo "Renaming discount_type to type... ";
         $db->exec("ALTER TABLE salon_offers CHANGE discount_type type ENUM('percentage', 'fixed') DEFAULT 'percentage'");
+        echo "✓\n";
+    }
+    elseif (in_array('discount_type', $existingColumns)) {
+        echo "Dropping redundant discount_type... ";
+        $db->exec("ALTER TABLE salon_offers DROP COLUMN discount_type");
         echo "✓\n";
     }
 
     if (in_array('discount_value', $existingColumns) && !in_array('value', $existingColumns)) {
         echo "Renaming discount_value to value... ";
         $db->exec("ALTER TABLE salon_offers CHANGE discount_value value DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+        echo "✓\n";
+    }
+    elseif (in_array('discount_value', $existingColumns)) {
+        echo "Dropping redundant discount_value... ";
+        $db->exec("ALTER TABLE salon_offers DROP COLUMN discount_value");
         echo "✓\n";
     }
 
