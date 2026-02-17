@@ -11,7 +11,8 @@ if ($method === 'GET' && in_array('settings', $uriParts)) {
         $userData = Auth::getUserFromToken();
         if ($userData && isset($userData['salon_id'])) {
             $salonId = $userData['salon_id'];
-        } else {
+        }
+        else {
             sendResponse(['error' => 'salon_id required'], 400);
         }
     }
@@ -28,7 +29,8 @@ if ($method === 'POST' && in_array('settings', $uriParts)) {
 
     if ($loyaltyService->updateSettings($salonId, $data)) {
         sendResponse(['success' => true, 'Settings updated']);
-    } else {
+    }
+    else {
         sendResponse(['error' => 'Failed to update settings'], 500);
     }
 }
@@ -67,7 +69,8 @@ if ($method === 'DELETE' && in_array('rewards', $uriParts) && !empty($uriParts[2
 
     if ($loyaltyService->deleteReward($salonId, $rewardId)) {
         sendResponse(['success' => true]);
-    } else {
+    }
+    else {
         sendResponse(['error' => 'Failed to delete reward'], 500);
     }
 }
@@ -84,6 +87,79 @@ if ($method === 'GET' && in_array('my-points', $uriParts)) {
 
     $points = $loyaltyService->getCustomerPoints($salonId, $userData['user_id']);
     sendResponse(['points' => $points]);
+}
+
+// GET /api/loyalty/all-points
+if ($method === 'GET' && in_array('all-points', $uriParts)) {
+    $userData = Auth::getUserFromToken();
+    if (!$userData) {
+        sendResponse(['error' => 'Unauthorized'], 401);
+    }
+    sendResponse(['points' => $loyaltyService->getAllCustomerPoints($userData['user_id'])]);
+}
+
+// GET /api/loyalty/fix-my-points
+if ($method === 'GET' && in_array('fix-my-points', $uriParts)) {
+    $userData = Auth::getUserFromToken();
+    if (!$userData) sendResponse(['error' => 'Unauthorized'], 401);
+
+    require_once __DIR__ . '/../../Services/CoinService.php';
+    $coinService = new CoinService($db);
+
+    $stmt = $db->prepare("
+        SELECT b.*, s.name as service_name, ser.price as service_price
+        FROM bookings b
+        JOIN services ser ON b.service_id = ser.id
+        LEFT JOIN services s ON b.service_id = s.id
+        WHERE b.user_id = ? AND b.status = 'completed'
+    ");
+    $stmt->execute([$userData['user_id']]);
+    $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $loyaltyAdded = 0;
+    $coinsAdded = 0;
+
+    foreach ($bookings as $b) {
+        $amount = (float)($b['price_paid'] ?? 0);
+        if ($amount <= 0) $amount = (float)($b['service_price'] ?? 0);
+        if ($amount <= 0) continue;
+
+        // 1. Loyalty Points
+        if (!$loyaltyService->hasTransactionForReference($b['id'])) {
+            if ($loyaltyService->earnPoints($b['salon_id'], $userData['user_id'], $amount, $b['id'])) {
+                $loyaltyAdded++;
+            }
+        }
+
+        // 2. Platform Coins
+        if (!$coinService->hasTransactionForReference($b['id'])) {
+            $earningRate = (float) $coinService->getSetting('coin_earning_rate', 10);
+            if ($earningRate > 0) {
+                $coinsToEarn = ceil($amount / $earningRate);
+                if ($coinsToEarn > 0) {
+                    if ($coinService->adjustBalance(
+                        $userData['user_id'],
+                        $coinsToEarn,
+                        'earned',
+                        "Retroactive coins for: " . ($b['service_name'] ?? $b['id']),
+                        $b['id']
+                    )) {
+                        $coinsAdded++;
+                    }
+                }
+            }
+        }
+    }
+
+    sendResponse([
+        'success' => true,
+        'message' => "Scan complete.",
+        'details' => [
+            'bookings_scanned' => count($bookings),
+            'loyalty_awards_fixed' => $loyaltyAdded,
+            'coin_awards_fixed' => $coinsAdded
+        ]
+    ]);
 }
 
 // POST /api/loyalty/redeem
@@ -103,7 +179,8 @@ if ($method === 'POST' && in_array('redeem', $uriParts)) {
 
     if (isset($result['error'])) {
         sendResponse($result, 400);
-    } else {
+    }
+    else {
         sendResponse($result);
     }
 }

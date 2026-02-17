@@ -46,7 +46,7 @@ if ($method === 'GET' && ($uriParts[1] ?? '') === 'available-specialists') {
     $params = [$salonId];
 
     if ($serviceId) {
-        $query .= " AND s.id IN (SELECT staff_id FROM staff_services WHERE service_id = ?)";
+        $query .= " AND (s.id IN (SELECT staff_id FROM staff_services WHERE service_id = ?) OR s.id NOT IN (SELECT staff_id FROM staff_services))";
         $params[] = $serviceId;
     }
 

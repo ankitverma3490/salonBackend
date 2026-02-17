@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 class LoyaltyService
 {
@@ -24,7 +24,7 @@ class LoyaltyService
             $id = Auth::generateUuid();
             $stmt = $this->db->prepare("
                 INSERT INTO loyalty_programs (id, salon_id, is_active)
-                VALUES (?, ?, 0)
+                VALUES (?, ?, 1)
             ");
             $stmt->execute([$id, $salonId]);
             return $this->getSettings($salonId);
@@ -102,7 +102,7 @@ class LoyaltyService
     {
         $stmt = $this->db->prepare("SELECT loyalty_points FROM customer_salon_profiles WHERE salon_id = ? AND user_id = ?");
         $stmt->execute([$salonId, $userId]);
-        return (int) $stmt->fetchColumn();
+        return (int)$stmt->fetchColumn() ?: 0;
     }
 
     public function earnPoints($salonId, $userId, $amountSpent, $bookingId)
@@ -132,11 +132,8 @@ class LoyaltyService
                 VALUES (?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE loyalty_points = loyalty_points + ?
             ");
-            // Note: ID generation for insert on duplicate key is tricky if we rely on it auto-creating.
-            // But usually profile exists. If not, we might need to be careful.
-            // For now, assume profile exists or handle safely.
-
-            // Check existence first to be safe
+            
+            // Check existence for non-MySQL DBs or if ON DUPLICATE KEY is weird
             $check = $this->db->prepare("SELECT id FROM customer_salon_profiles WHERE salon_id = ? AND user_id = ?");
             $check->execute([$salonId, $userId]);
             if (!$check->fetch()) {
@@ -164,6 +161,46 @@ class LoyaltyService
             $this->db->rollBack();
             error_log("Loyalty Earn Error: " . $e->getMessage());
             return false;
+        }
+    }
+
+    public function spendPoints($salonId, $userId, $points, $description = 'Points used for booking', $referenceId = null)
+    {
+        if ($points <= 0) return true;
+
+        $currentPoints = $this->getCustomerPoints($salonId, $userId);
+        if ($currentPoints < $points) {
+            return ['error' => 'Insufficient loyalty points'];
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // Deduct points
+            $stmt = $this->db->prepare("UPDATE customer_salon_profiles SET loyalty_points = loyalty_points - ? WHERE salon_id = ? AND user_id = ?");
+            $stmt->execute([$points, $salonId, $userId]);
+
+            // Log transaction
+            $txnId = Auth::generateUuid();
+            $stmt = $this->db->prepare("
+                INSERT INTO loyalty_transactions (id, salon_id, user_id, points, transaction_type, reference_id, description)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $txnId,
+                $salonId,
+                $userId,
+                -$points,
+                'redeemed',
+                $referenceId,
+                $description
+            ]);
+
+            $this->db->commit();
+            return ['success' => true, 'balance' => $currentPoints - $points];
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Loyalty Spend Error: " . $e->getMessage());
+            return ['error' => $e->getMessage()];
         }
     }
 
@@ -215,5 +252,25 @@ class LoyaltyService
             $this->db->rollBack();
             return ['error' => $e->getMessage()];
         }
+    }
+
+    public function getAllCustomerPoints($userId)
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.name as salon_name, p.loyalty_points, s.id as salon_id
+            FROM customer_salon_profiles p
+            JOIN salons s ON p.salon_id = s.id
+            WHERE p.user_id = ?
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function hasTransactionForReference($bookingId)
+    {
+        if (!$bookingId) return false;
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM loyalty_transactions WHERE reference_id = ?");
+        $stmt->execute([$bookingId]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 }

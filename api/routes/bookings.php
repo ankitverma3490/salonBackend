@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Booking routes
 require_once __DIR__ . '/../../Services/CoinService.php';
 $coinService = new CoinService($db);
@@ -119,128 +119,114 @@ if ($method === 'POST' && count($uriParts) === 1) {
     }
 
     $data = getRequestBody();
-    $bookingId = Auth::generateUuid();
 
-    // 1. Intelligent Staff Availability Check
-    $targetStaffId = $data['staff_id'] ?? null;
+    // Validate required fields
+    if (!isset($data['salon_id']) || !isset($data['service_id']) || !isset($data['booking_date']) || !isset($data['booking_time'])) {
+        sendResponse(['error' => 'Missing required fields'], 400);
+    }
+
+    $bookingId = Auth::generateUuid();
     $serviceId = $data['service_id'];
     $bookingDate = $data['booking_date'];
     $bookingTime = $data['booking_time'];
+    $targetStaffId = $data['staff_id'] ?? null;
+    $useCoins = isset($data['use_coins']) && $data['use_coins'] === true;
 
+    // 1. Check if staff is available
     if ($targetStaffId) {
-        // Specific staff selected - check if they handle the service AND are free
-        $bookingStatus = $data['status'] ?? 'confirmed';
-        $stmt = $db->prepare("SELECT id FROM staff_services WHERE staff_id = ? AND service_id = ?");
-        $stmt->execute([$targetStaffId, $serviceId]);
-        if (!$stmt->fetch()) {
-            sendResponse(['error' => 'The selected specialist does not handle this specific service.'], 400);
-        }
-
-        $stmt = $db->prepare("SELECT id FROM bookings WHERE staff_id = ? AND booking_date = ? AND booking_time = ? AND status !=
-'cancelled'");
-        $stmt->execute([$targetStaffId, $bookingDate, $bookingTime]);
-        if ($stmt->fetch()) {
-            sendResponse(['error' => 'The selected specialist is already occupied at this time slot.'], 409);
-        }
-    } else {
-        // No staff selected - find ANY free staff that handles this service
         $stmt = $db->prepare("
-SELECT s.id
-FROM staff_profiles s
-INNER JOIN staff_services ss ON s.id = ss.staff_id
-WHERE ss.service_id = ? AND s.is_active = 1
-AND NOT EXISTS (
-SELECT 1 FROM bookings b
-WHERE b.staff_id = s.id
-AND b.booking_date = ?
-AND b.booking_time = ?
-AND b.status != 'cancelled'
-)
-LIMIT 1
-");
-        $stmt->execute([$serviceId, $bookingDate, $bookingTime]);
-        $availableStaff = $stmt->fetch();
-
-        if (!$availableStaff) {
-            // Instead of failing, we allow the booking but mark it as pending assignment
-            $targetStaffId = null;
-            $bookingStatus = 'pending';
-        } else {
-            $targetStaffId = $availableStaff['id'];
-            $bookingStatus = $data['status'] ?? 'confirmed';
+            SELECT COUNT(*) FROM bookings 
+            WHERE staff_id = ? AND booking_date = ? AND booking_time = ? AND status != 'cancelled'
+        ");
+        $stmt->execute([$targetStaffId, $bookingDate, $bookingTime]);
+        if ($stmt->fetchColumn() > 0) {
+            sendResponse(['error' => 'Specialist is already booked for this time.'], 400);
         }
     }
 
-    // 2. Coin Payment Integration
-    $useCoins = $data['use_coins'] ?? false;
+    // 2. Handle point deduction if requested
     $coinsToUse = 0;
+    $loyaltyPointsToUse = 0;
     $coinValueInCurrency = 0;
-    $coinPrice = $coinService->getCoinPrice();
+    $coinPrice = (float) $coinService->getCoinPrice();
 
     if ($useCoins) {
-        $userBalance = $coinService->getBalance($userData['user_id']);
+        require_once __DIR__ . '/../../Services/LoyaltyService.php';
+        $loyaltyService = new LoyaltyService($db);
+
+        $coinBalance = $coinService->getBalance($userData['user_id']);
+        $loyaltyBalance = $loyaltyService->getCustomerPoints($data['salon_id'], $userData['user_id']);
+        $totalBalanceAvailable = $coinBalance + $loyaltyBalance;
+
         $minRedemption = (float) $coinService->getSetting('coin_min_redemption', 0);
         $maxDiscountPercent = (float) $coinService->getSetting('coin_max_discount_percent', 100);
 
-        if ($userBalance < $minRedemption) {
-            sendResponse(['error' => "A minimum of {$minRedemption} coins is required for redemption."], 400);
+        if ($totalBalanceAvailable < $minRedemption) {
+            sendResponse(['error' => "A minimum of {$minRedemption} points is required for redemption."], 400);
         }
 
-        if ($userBalance > 0) {
-            // Get service price to know max useful coins
+        if ($totalBalanceAvailable > 0) {
+            // Get service price to know max useful points
             $stmt = $db->prepare("SELECT price, name FROM services WHERE id = ?");
             $stmt->execute([$serviceId]);
             $service = $stmt->fetch();
             $basePrice = $service['price'] ?? 0;
 
-            // Max coins calculation with constraints
+            // Max points calculation with constraints
             $maxAllowedDiscount = $basePrice * ($maxDiscountPercent / 100);
-            $maxPossibleCoinValue = min($basePrice, $maxAllowedDiscount);
-            $coinsNeeded = $maxPossibleCoinValue / $coinPrice;
+            $maxPossibleValue = min($basePrice, $maxAllowedDiscount);
+            $totalPointsNeeded = ceil($maxPossibleValue / $coinPrice);
 
-            $coinsToUse = min($userBalance, $coinsNeeded);
-            $coinValueInCurrency = $coinsToUse * $coinPrice;
+            // 1. Prioritize Platform Coins
+            $coinsToSpend = min($coinBalance, $totalPointsNeeded);
+            $remainingNeeded = $totalPointsNeeded - $coinsToSpend;
 
-            // Spend the coins
-            $res = $coinService->spendCoins(
-                $userData['user_id'],
-                $coinsToUse,
-                "Booking payment for service: " . ($service['name'] ?? $serviceId),
-                $bookingId
-            );
+            // 2. Use Loyalty Points for the rest
+            $loyaltyToSpend = min($loyaltyBalance, $remainingNeeded);
 
-            if (isset($res['error'])) {
-                sendResponse(['error' => $res['error']], 400);
+            if ($coinsToSpend > 0) {
+                $res = $coinService->spendCoins(
+                    $userData['user_id'],
+                    $coinsToSpend,
+                    "Booking payment for service: " . ($service['name'] ?? $serviceId),
+                    $bookingId
+                );
+                if (isset($res['error'])) sendResponse(['error' => $res['error']], 400);
+                $coinsToUse = $coinsToSpend;
             }
+
+            if ($loyaltyToSpend > 0) {
+                $res = $loyaltyService->spendPoints(
+                    $data['salon_id'],
+                    $userData['user_id'],
+                    $loyaltyToSpend,
+                    "Booking payment for service: " . ($service['name'] ?? $serviceId),
+                    $bookingId
+                );
+                if (isset($res['error'])) sendResponse(['error' => $res['error']], 400);
+                $loyaltyPointsToUse = $loyaltyToSpend;
+            }
+
+            $coinValueInCurrency = ($coinsToUse + $loyaltyPointsToUse) * $coinPrice;
         }
     }
 
     $finalPricePaid = ($data['price_paid'] ?? 0) - $coinValueInCurrency;
-    if ($finalPricePaid < 0)
-        $finalPricePaid = 0;
+    if ($finalPricePaid < 0) $finalPricePaid = 0;
+
     $stmt = $db->prepare("
-    INSERT INTO bookings (id, user_id, salon_id, service_id, staff_id, price_paid, coins_used, coin_currency_value,
-    discount_amount, coupon_code, booking_date, booking_time, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bookings (id, user_id, salon_id, service_id, staff_id, price_paid, coins_used, loyalty_points_used, coin_currency_value,
+        discount_amount, coupon_code, booking_date, booking_time, notes, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
-        $bookingId,
-        $userData['user_id'],
-        $data['salon_id'],
-        $serviceId,
-        $targetStaffId,
-        $finalPricePaid,
-        $coinsToUse,
-        $coinPrice,
-        $data['discount_amount'] ?? 0,
-        $data['coupon_code'] ?? null,
-        $bookingDate,
-        $bookingTime,
-        $data['notes'] ?? null,
-        $bookingStatus
+        $bookingId, $userData['user_id'], $data['salon_id'], $serviceId, $targetStaffId,
+        $finalPricePaid, $coinsToUse, $loyaltyPointsToUse, $coinPrice,
+        $data['discount_amount'] ?? 0, $data['coupon_code'] ?? null,
+        $bookingDate, $bookingTime, $data['notes'] ?? null, 'pending'
     ]);
 
-    // Get booking with service name
+    // Fetch the new booking with service info for the response
     $stmt = $db->prepare("
     SELECT b.*, s.name as service_name, sal.name as salon_name
     FROM bookings b
@@ -260,7 +246,7 @@ LIMIT 1
         $notifId = Auth::generateUuid();
         $stmt = $db->prepare("
     INSERT INTO notifications (id, user_id, salon_id, title, message, type, link)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, 'booking', ?)
     ");
         $stmt->execute([
             $notifId,
@@ -273,7 +259,6 @@ LIMIT 1
                 'M d',
                 strtotime($booking['booking_date'])
             ),
-            'booking',
             '/dashboard/appointments'
         ]);
     }
@@ -333,7 +318,13 @@ if ($method === 'PUT' && count($uriParts) === 2) {
         $coinService = new CoinService($db);
 
         // Calculate amount paid (price_paid or service price)
-        $amount = $booking['price_paid'] ?? $booking['price'] ?? 0;
+        $amount = (float)($booking['price_paid'] ?? 0);
+        if ($amount <= 0) {
+            $stmtPrice = $db->prepare("SELECT price FROM services WHERE id = ?");
+            $stmtPrice->execute([$booking['service_id']]);
+            $amount = (float)$stmtPrice->fetchColumn();
+        }
+
         if ($amount > 0) {
             // Earn loyalty points
             $loyaltyService->earnPoints($booking['salon_id'], $booking['user_id'], $amount, $bookingId);

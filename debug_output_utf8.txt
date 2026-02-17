@@ -1,0 +1,144 @@
+﻿--- STAFF PROFILES ---
+Array
+(
+    [0] => Array
+        (
+            [id] => 6948cb57-095a-4114-8c5a-ebf9e9a74708
+            [user_id] => 840da81f-312b-411e-a044-bc6a279ba4af
+            [display_name] => bhavna
+            [email] => bhavna@gmail.com
+            [phone] => +607747911593
+            [salon_id] => 41957a34-8f09-4490-ba3b-a2412397962d
+            [position] => 
+            [bio] => 
+            [specializations] => ["Skin Care"]
+            [specialties] => 
+            [commission_percentage] => 0.00
+            [avatar_url] => 
+            [created_by_id] => 84753b55-285d-4763-b02f-c64f95f7d7b9
+            [is_active] => 1
+            [created_at] => 2026-02-15 13:33:22
+            [updated_at] => 2026-02-15 13:33:22
+        )
+
+    [1] => Array
+        (
+            [id] => 9fd25e3f-8a92-44c0-983b-0192a1161342
+            [user_id] => 310c2517-158c-4d93-b0ec-16def7186982
+            [display_name] => durga
+            [email] => durga@gmail.com
+            [phone] => +607747911593
+            [salon_id] => cdbde42d-d7f2-4adf-b388-78be5fd01551
+            [position] => 
+            [bio] => 
+            [specializations] => ["skin care"]
+            [specialties] => 
+            [commission_percentage] => 0.00
+            [avatar_url] => 
+            [created_by_id] => 1518343c-7918-4568-816e-8a652660aec3
+            [is_active] => 1
+            [created_at] => 2026-02-16 11:34:03
+            [updated_at] => 2026-02-16 11:34:03
+        )
+
+    [2] => Array
+        (
+            [id] => e41a7135-b1e9-4a15-82cd-9fec1c7eae43
+            [user_id] => 888a6dac-e54d-4ddb-91da-08af2e7f7396
+            [display_name] => aman
+            [email] => aman@gmail.com
+            [phone] => +6085207410
+            [salon_id] => 9f9a5cfb-a3c4-40e4-a6a2-f5dbba2143b9
+            [position] => 
+            [bio] => 
+            [specializations] => ["hair"]
+            [specialties] => 
+            [commission_percentage] => 0.00
+            [avatar_url] => 
+            [created_by_id] => 3f170bd2-b8b7-45be-a2f7-e3eed6b0382e
+            [is_active] => 1
+            [created_at] => 2026-02-14 19:42:14
+            [updated_at] => 2026-02-14 19:42:14
+        )
+
+)
+
+--- STAFF SERVICES ---
+Array
+(
+    [0] => Array
+        (
+            [id] => 6a0d4e2c-ed84-406b-84e9-d803711edc6f
+            [staff_id] => e41a7135-b1e9-4a15-82cd-9fec1c7eae43
+            [service_id] => 7b3e69f9-6fc9-4ce4-b4f1-45fd7e697e46
+            [created_at] => 2026-02-15 13:32:44
+        )
+
+    [1] => Array
+        (
+            [id] => e206e478-6d4f-4f1d-83b0-6959de30c244
+            [staff_id] => 6948cb57-095a-4114-8c5a-ebf9e9a74708
+            [service_id] => 3b50a0c5-fc64-4158-9833-774b1d4844e5
+            [created_at] => 2026-02-15 14:36:52
+        )
+
+)
+
+--- USER ROLES ---
+Array
+(
+    [0] => Array
+        (
+            [id] => 09c7c0c8-d54d-4a4c-854d-ff051f0ec102
+            [user_id] => 1518343c-7918-4568-816e-8a652660aec3
+            [salon_id] => cdbde42d-d7f2-4adf-b388-78be5fd01551
+            [role] => owner
+            [created_at] => 2026-02-16 10:55:17
+        )
+
+    [1] => Array
+        (
+            [id] => 1cd0981b-8f84-4bbf-8e3c-ff89d60cb670
+            [user_id] => 84753b55-285d-4763-b02f-c64f95f7d7b9
+            [salon_id] => 41957a34-8f09-4490-ba3b-a2412397962d
+            [role] => owner
+            [created_at] => 2026-02-15 10:30:51
+        )
+
+    [2] => Array
+        (
+            [id] => 3c4f9f74-5189-4e1e-9256-b81c997bd64f
+            [user_id] => 888a6dac-e54d-4ddb-91da-08af2e7f7396
+            [salon_id] => 9f9a5cfb-a3c4-40e4-a6a2-f5dbba2143b9
+            [role] => staff
+            [created_at] => 2026-02-14 19:42:14
+        )
+
+    [3] => Array
+        (
+            [id] => 5334465b-ee80-4827-b7bb-c2953123d803
+            [user_id] => 840da81f-312b-411e-a044-bc6a279ba4af
+            [salon_id] => 41957a34-8f09-4490-ba3b-a2412397962d
+            [role] => staff
+            [created_at] => 2026-02-15 13:33:22
+        )
+
+    [4] => Array
+        (
+            [id] => 6794ee47-138e-45ad-960d-0ce25931eb2c
+            [user_id] => 310c2517-158c-4d93-b0ec-16def7186982
+            [salon_id] => cdbde42d-d7f2-4adf-b388-78be5fd01551
+            [role] => staff
+            [created_at] => 2026-02-16 11:34:03
+        )
+
+    [5] => Array
+        (
+            [id] => e446e376-f85f-4dd7-9efd-ee01d9dae60b
+            [user_id] => 3f170bd2-b8b7-45be-a2f7-e3eed6b0382e
+            [salon_id] => 9f9a5cfb-a3c4-40e4-a6a2-f5dbba2143b9
+            [role] => owner
+            [created_at] => 2026-02-14 14:18:24
+        )
+
+)

@@ -20,7 +20,7 @@ if ($method === 'GET' && count($uriParts) === 1) {
     if (!$hasAccess) {
         $stmt = $db->prepare("SELECT id FROM user_roles WHERE user_id = ? AND salon_id = ?");
         $stmt->execute([$userData['user_id'], $salonId]);
-        $hasAccess = (bool) $stmt->fetch();
+        $hasAccess = (bool)$stmt->fetch();
     }
 
     if (!$hasAccess) {
@@ -62,6 +62,25 @@ if ($method === 'POST' && count($uriParts) === 1) {
     $id = Auth::generateUuid();
     $stmt = $db->prepare("INSERT INTO customer_product_purchases (id, user_id, salon_id, product_name, price, purchase_date) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->execute([$id, $userId, $salonId, $productName, $price, $purchaseDate]);
+
+    // Points & Coins Integration
+    try {
+        require_once __DIR__ . '/../../Services/LoyaltyService.php';
+        require_once __DIR__ . '/../../Services/CoinService.php';
+        require_once __DIR__ . '/../../Services/NotificationService.php';
+
+        $loyaltyService = new LoyaltyService($db, new NotificationService($db));
+        $coinService = new CoinService($db);
+
+        // Earn loyalty points
+        $loyaltyService->earnPoints($salonId, $userId, $price, $id, "Points earned from purchase: $productName");
+
+        // Earn platform coins
+        $coinService->earnCoins($userId, $price, "Coins earned from purchase: $productName at " . ($data['salon_name'] ?? 'Salon'), $id);
+    }
+    catch (Exception $e) {
+        error_log("Failed to process points/coins for product purchase: " . $e->getMessage());
+    }
 
     sendResponse(['success' => true, 'id' => $id]);
 }

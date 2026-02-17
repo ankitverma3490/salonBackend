@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 class CoinService
 {
@@ -16,7 +16,15 @@ class CoinService
         $stmt = $this->db->prepare("SELECT setting_value FROM platform_settings WHERE setting_key = ?");
         $stmt->execute([$key]);
         $value = $stmt->fetchColumn();
-        return $value !== false ? $value : $default;
+
+        if ($value === false) {
+            return $default;
+        }
+
+        // Standardize: Admin API stores everything as JSON. 
+        // We attempt to decode it, if it fails or isn't JSON, we return the raw value.
+        $decoded = json_decode($value, true);
+        return (json_last_error() === JSON_ERROR_NONE) ? $decoded : $value;
     }
 
     public function getCoinPrice()
@@ -26,8 +34,9 @@ class CoinService
 
     public function setCoinPrice($price, $updatedBy)
     {
+        // For consistency with Admin API, store as JSON
         $stmt = $this->db->prepare("UPDATE platform_settings SET setting_value = ?, updated_by = ? WHERE setting_key = 'coin_price'");
-        return $stmt->execute([$price, $updatedBy]);
+        return $stmt->execute([json_encode((float)$price), $updatedBy]);
     }
 
     // --- User Balance ---
@@ -100,5 +109,13 @@ class CoinService
             return ['success' => true];
         }
         return ['error' => 'Failed to process transaction'];
+    }
+
+    public function hasTransactionForReference($referenceId)
+    {
+        if (!$referenceId) return false;
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM coin_transactions WHERE reference_id = ?");
+        $stmt->execute([$referenceId]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 }
