@@ -500,7 +500,7 @@ if ($method === 'GET' && $uriParts[1] === 'reports') {
     $stmt->execute([$range]);
     $serviceRevenue = $stmt->fetch()['total'];
 
-    $stmt = $db->prepare("SELECT IFNULL(SUM(total_amount), 0) as total FROM customer_product_purchases WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
+    $stmt = $db->prepare("SELECT IFNULL(SUM(total_amount), 0) as total FROM customer_product_purchases WHERE purchase_date >= DATE_SUB(NOW(), INTERVAL ? DAY)");
     $stmt->execute([$range]);
     $productRevenue = $stmt->fetch()['total'];
 
