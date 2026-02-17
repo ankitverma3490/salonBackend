@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header('Access-Control-Max-Age: 86400');
     header('Content-Length: 0');
     header('Content-Type: text/plain');
-    http_response_code(200); 
+    http_response_code(200);
     exit();
 }
 
@@ -377,58 +377,7 @@ try {
             require_once __DIR__ . '/routes/coins.php';
             break;
         case 'coupons':
-            if ($method === 'GET' && ($uriParts[1] ?? '') === 'validate') {
-                $code = trim(strtoupper($uriParts[2] ?? ''));
-                $salonId = trim($_GET['salon_id'] ?? '');
-                
-                if (!$salonId) {
-                    sendResponse(['error' => 'salon_id is required for validation'], 400);
-                }
-
-                if (!$code) {
-                    sendResponse(['error' => 'coupon code is required'], 400);
-                }
-
-                try {
-                    $conn = $db->getConnection();
-                    $stmt = $conn->prepare("
-                        SELECT code, type as discount_type, value as discount_value, status, start_date, end_date, is_active
-                        FROM salon_offers 
-                        WHERE salon_id = ? AND TRIM(UPPER(code)) = ? 
-                        LIMIT 1
-                    ");
-                    $stmt->execute([$salonId, $code]);
-                    $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                    if (!$coupon) {
-                        sendResponse(['error' => "Coupon '$code' not found for this salon."], 404);
-                    }
-
-                    // Check status
-                    if ($coupon['status'] !== 'active' || (isset($coupon['is_active']) && !$coupon['is_active'])) {
-                        sendResponse(['error' => "Coupon '$code' is currently " . ($coupon['status'] ?: 'inactive') . "."], 400);
-                    }
-
-                    // Check dates
-                    $today = date('Y-m-d');
-                    if ($coupon['start_date'] && substr($coupon['start_date'], 0, 10) > $today) {
-                        sendResponse(['error' => "Coupon '$code' is not yet active (starts " . substr($coupon['start_date'], 0, 10) . ")."], 400);
-                    }
-                    if ($coupon['end_date'] && substr($coupon['end_date'], 0, 10) < $today) {
-                        sendResponse(['error' => "Coupon '$code' has expired (ended " . substr($coupon['end_date'], 0, 10) . ")."], 400);
-                    }
-
-                    sendResponse([
-                        'code' => $coupon['code'],
-                        'discount_type' => $coupon['discount_type'],
-                        'discount_value' => (float)$coupon['discount_value'],
-                        'is_active' => true
-                    ]);
-                } catch (PDOException $e) {
-                    sendResponse(['error' => 'Validation error: ' . $e->getMessage()], 500);
-                }
-            }
-            sendResponse(['error' => 'Coupon route not found'], 404);
+            require_once __DIR__ . '/routes/coupons.php';
             break;
         default:
             sendResponse([
