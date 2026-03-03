@@ -15,16 +15,10 @@
 </IfModule>
 
 <IfModule mod_headers.c>
-    # 🚨 CORS FIX: You cannot use '*' with Credentials: true.
-    # We must mirror the request's 'Origin' header to satisfy the browser.
-    
-    # Capture the Origin header
-    SetEnvIf Origin "^(.*)$" ACCESS_CONTROL_ORIGIN=$1
-    
-    # Set the CORS headers dynamically
-    Header always set Access-Control-Allow-Origin "%{ACCESS_CONTROL_ORIGIN}e" env=ACCESS_CONTROL_ORIGIN
-    Header always set Access-Control-Allow-Credentials "true"
-    
+    # Allow all origins (wildcard). Note: wildcard cannot be used together with credentials.
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Credentials "false"
+
     # Standard permitted methods and headers
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
     Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma"
