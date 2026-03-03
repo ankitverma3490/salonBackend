@@ -42,6 +42,7 @@ EOF
 
 # Ensure the site is enabled
 a2ensite 000-default
+a2enmod rewrite headers
 
 # 2. 🧹 MPM Cleanup (Aggressive)
 echo "Cleaning up Apache MPMs..."

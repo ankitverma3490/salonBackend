@@ -16,11 +16,13 @@
 
 
 <IfModule mod_headers.c>
-    # Allow all origins (wildcard). Note: wildcard cannot be used together with credentials.
-    Header always set Access-Control-Allow-Origin "*"
-    Header always set Access-Control-Allow-Credentials "false"
+    # Robust CORS Handling
+    SetEnvIf Origin "^https?://(localhost|thunderous-hamster-db8bb0\.netlify\.app|complete-salon-saas-product-production\.up\.railway\.app)$" ALLOWED_ORIGIN=$0
+    Header always set Access-Control-Allow-Origin %{ALLOWED_ORIGIN}e env=ALLOWED_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true" env=ALLOWED_ORIGIN
 
     # Standard permitted methods and headers
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
     Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma"
+    Header always set Access-Control-Max-Age "86400"
 </IfModule>

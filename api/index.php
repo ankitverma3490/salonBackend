@@ -22,8 +22,12 @@ error_reporting(E_ALL);
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    // Apache adds the CORS headers automatically
-    // We just need to respond with 200 OK and exit
+    // Fallback headers if Apache modules are missing (though we've enabled them now)
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma');
     header('Access-Control-Max-Age: 86400');
     header('Content-Length: 0');
     header('Content-Type: text/plain');

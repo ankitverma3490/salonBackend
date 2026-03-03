@@ -21,6 +21,7 @@ RUN docker-php-ext-install \
     mbstring \
     xml \
     zip
+RUN a2enmod rewrite headers
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
 # 1. Copy application source code
