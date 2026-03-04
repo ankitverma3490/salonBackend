@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // Staff routes (NEW TXT)
 
 // GET /api/staff?salon_id=xxx - Get salon staff members

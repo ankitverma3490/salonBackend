@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // Booking routes
 require_once __DIR__ . '/../../Services/CoinService.php';
 $coinService = new CoinService($db);
