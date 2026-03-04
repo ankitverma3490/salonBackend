@@ -41,7 +41,7 @@ if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'create-bil
                               JOIN services s ON b.service_id = s.id 
                               JOIN salons salon ON b.salon_id = salon.id
                               JOIN users u ON b.user_id = u.id
-                              JOIN profiles p ON u.user_id = p.user_id
+                              JOIN profiles p ON u.id = p.user_id
                               WHERE b.id = ?");
         $stmt->execute([$id]);
         $booking = $stmt->fetch(PDO::FETCH_ASSOC);
