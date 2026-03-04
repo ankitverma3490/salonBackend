@@ -12,14 +12,16 @@ function sendToyyibPayRequest($url, $data)
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    $response = curl_exec($ch);
+    $rawResponse = curl_exec($ch);
 
     if (curl_errno($ch)) {
-        error_log('[ToyyibPay] cURL Error: ' . curl_error($ch));
+        error_log('[ToyyibPay] cURL Error (' . curl_errno($ch) . '): ' . curl_error($ch));
     }
+    
+    error_log('[ToyyibPay] Raw Response From ' . $url . ': ' . $rawResponse);
 
     curl_close($ch);
-    return json_decode($response, true);
+    return json_decode($rawResponse, true);
 }
 
 // POST /api/toyyibpay/create-bill
@@ -127,9 +129,11 @@ if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'create-bil
             'payment_url' => $paymentUrl
         ]);
     } else {
+        // If we get here, either $response is null (curl error) or BillCode is missing
         sendResponse([
             'error' => 'Failed to generate payment URL',
-            'toyyibpay_response' => $response
+            'toyyibpay_response' => $response,
+            'debug_info' => 'Check Railway logs for [ToyyibPay] Raw Response and cURL errors'
         ], 500);
     }
 }
