@@ -66,7 +66,11 @@ else
     exit 1
 fi
 
-# 3. ⚙️ Optimize Configuration
+# 3. 🛡️ Database Migrations
+echo "Checking for missing tables..."
+php /var/www/html/create_missing_tables.php || echo "Warning: Migration script failed, but continuing..."
+
+# 4. ⚙️ Optimize Configuration
 # Suppress ServerName warning
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
 

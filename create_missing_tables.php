@@ -383,6 +383,18 @@ try {
             FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
             INDEX idx_admin_id (admin_id),
             INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        'payment_transactions' => "CREATE TABLE IF NOT EXISTS payment_transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            booking_id VARCHAR(255) NOT NULL,
+            gateway VARCHAR(50) NOT NULL,
+            bill_code VARCHAR(255) NOT NULL,
+            transaction_id VARCHAR(255) DEFAULT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            status VARCHAR(50) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
 
