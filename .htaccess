@@ -17,7 +17,7 @@
 
 <IfModule mod_headers.c>
     # Robust CORS Handling
-    SetEnvIf Origin "^https?://(localhost|thunderous-hamster-db8bb0\.netlify\.app|scintillating-speculoos-e24933\.netlify\.app|complete-salon-saas-product-production\.up\.railway\.app)$" ALLOWED_ORIGIN=$0
+    SetEnvIf Origin "^https?://(localhost(:[0-9]+)?|thunderous-hamster-db8bb0\.netlify\.app|scintillating-speculoos-e24933\.netlify\.app|complete-salon-saas-product-production\.up\.railway\.app)$" ALLOWED_ORIGIN=$0
     Header always set Access-Control-Allow-Origin %{ALLOWED_ORIGIN}e env=ALLOWED_ORIGIN
     Header always set Access-Control-Allow-Credentials "true" env=ALLOWED_ORIGIN
 
