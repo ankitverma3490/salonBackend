@@ -41,7 +41,8 @@ SELECT b.*, s.name as service_name, s.price as service_price, s.duration_minutes
 sal.name as salon_name, sal.address as salon_address, sal.city as salon_city,
 u.email, p.full_name, p.phone,
 sp.display_name as staff_name,
-COALESCE(b.price_paid, s.price) as price
+COALESCE(b.price_paid, s.price) as price,
+(SELECT COALESCE(SUM(amount), 0) FROM payment_transactions pt WHERE pt.booking_id = b.id AND pt.status = 'success') as amount_paid
 FROM bookings b
 INNER JOIN services s ON b.service_id = s.id
 INNER JOIN salons sal ON b.salon_id = sal.id
@@ -56,7 +57,8 @@ ORDER BY b.booking_date DESC, b.booking_time DESC
         // Get user's bookings
         $stmt = $db->prepare("
 SELECT b.*, s.name as service_name, s.price, s.duration_minutes, s.category,
-sal.name as salon_name, sal.address as salon_address, sal.city as salon_city, sal.phone as salon_phone
+sal.name as salon_name, sal.address as salon_address, sal.city as salon_city, sal.phone as salon_phone,
+(SELECT COALESCE(SUM(amount), 0) FROM payment_transactions pt WHERE pt.booking_id = b.id AND pt.status = 'success') as amount_paid
 FROM bookings b
 INNER JOIN services s ON b.service_id = s.id
 INNER JOIN salons sal ON b.salon_id = sal.id
@@ -81,7 +83,8 @@ if ($method === 'GET' && count($uriParts) === 2) {
     $stmt = $db->prepare("
 SELECT b.*, s.name as service_name, s.price, s.duration_minutes, s.category,
 sal.name as salon_name, sal.address as salon_address, sal.city as salon_city, sal.phone as salon_phone,
-u.email, p.full_name, p.phone
+u.email, p.full_name, p.phone,
+(SELECT COALESCE(SUM(amount), 0) FROM payment_transactions pt WHERE pt.booking_id = b.id AND pt.status = 'success') as amount_paid
 FROM bookings b
 INNER JOIN services s ON b.service_id = s.id
 INNER JOIN salons sal ON b.salon_id = sal.id
@@ -369,10 +372,39 @@ if ($method === 'PUT' && count($uriParts) === 2) {
     }
 
     $stmt = $db->prepare("SELECT * FROM bookings WHERE id = ?");
+    sendResponse(['booking' => $booking]);
+}
+
+// POST /api/bookings/:id/payment - Add a manual payment for a booking
+if ($method === 'POST' && count($uriParts) === 3 && $uriParts[2] === 'payment') {
+    $userData = Auth::getUserFromToken();
+    if (!$userData) {
+        sendResponse(['error' => 'Unauthorized'], 401);
+    }
+
+    $bookingId = $uriParts[1];
+    $data = getRequestBody();
+    $amount = (float)($data['amount'] ?? 0);
+
+    if ($amount <= 0) {
+        sendResponse(['error' => 'Invalid amount'], 400);
+    }
+
+    $stmt = $db->prepare("SELECT * FROM bookings WHERE id = ?");
     $stmt->execute([$bookingId]);
     $booking = $stmt->fetch();
 
-    sendResponse(['booking' => $booking]);
+    if (!$booking) {
+        sendResponse(['error' => 'Booking not found'], 404);
+    }
+
+    // Must be salon owner/manager/staff
+    $userData = protectRoute(['owner', 'manager', 'staff'], 'manage_bookings', $booking['salon_id']);
+
+    $stmt = $db->prepare("INSERT INTO payment_transactions (booking_id, gateway, bill_code, amount, status) VALUES (?, 'cash', ?, ?, 'success')");
+    $stmt->execute([$bookingId, 'manual_' . time(), $amount]);
+
+    sendResponse(['success' => true]);
 }
 
 // GET /api/bookings/:id/review - Get review for booking
