@@ -28,6 +28,7 @@ function sendToyyibPayRequest($url, $data)
 if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'create-bill') {
     $data = getRequestBody();
     $bookingIdsString = $data['booking_id'] ?? null;
+    $paymentType = $data['payment_type'] ?? 'full'; // 'full' or 'deposit'
 
     if (!$bookingIdsString) {
         sendResponse(['error' => 'Booking ID is required.'], 400);
@@ -77,14 +78,21 @@ if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'create-bil
         sendResponse(['error' => 'Invalid total booking amount.'], 400);
     }
 
+    $paymentAmount = $totalAmount;
+    $billDescription = 'Payment for salon booking';
+    if ($paymentType === 'deposit' && $totalAmount > 100) {
+        $paymentAmount = 100;
+        $billDescription = 'RM 100 Deposit for salon booking';
+    }
+
     $toyyibData = [
         'userSecretKey' => getenv('TOYYIBPAY_SECRET_KEY') ?: 'gy5xfe0i-89wc-riyw-ggg3-nxfksodv7fw3',
         'categoryCode' => getenv('TOYYIBPAY_CATEGORY_CODE') ?: 'p1cd10dd',
         'billName' => 'Salon Booking Payment',
-        'billDescription' => 'Payment for salon booking',
+        'billDescription' => $billDescription,
         'billPriceSetting' => 1,
         'billPayorInfo' => 1,
-        'billAmount' => (int) ($totalAmount * 100),
+        'billAmount' => (int) ($paymentAmount * 100),
         'billReturnUrl' => getenv('TOYYIBPAY_RETURN_URL') ?: 'https://complete-salon-saas-product-production.up.railway.app/payment-success',
         'billCallbackUrl' => getenv('TOYYIBPAY_CALLBACK_URL') ?: 'https://complete-salon-saas-product-production.up.railway.app/api/toyyibpay/callback',
         'billExternalReferenceNo' => (string) $bookingIdsString,
@@ -120,7 +128,7 @@ if ($method === 'POST' && count($uriParts) === 2 && $uriParts[1] === 'create-bil
 
         // Use the first ID for the transaction record, but full string is in external_ref
         $stmt = $db->prepare("INSERT INTO payment_transactions (booking_id, gateway, bill_code, amount, status) VALUES (?, 'toyyibpay', ?, ?, 'pending')");
-        $stmt->execute([$bookingIds[0], $billCode, $totalAmount]);
+        $stmt->execute([$bookingIds[0], $billCode, $paymentAmount]);
 
         $baseUrl = getenv('TOYYIBPAY_BASE_URL') ?: 'https://dev.toyyibpay.com';
         $paymentUrl = rtrim($baseUrl, '/') . '/' . $billCode;
