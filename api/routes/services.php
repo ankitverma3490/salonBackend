@@ -21,6 +21,8 @@ if ($method === 'GET' && count($uriParts) === 1) {
         // Global fetch - for "All Services" page if no salon specified
         // Only show active services from active salons
         // We use RAND() to show 'mixed' services across different categories and salons
+        $featuredQuery = isset($_GET['featured']) && $_GET['featured'] == '1' ? " AND s.is_featured = 1" : "";
+        
         $stmt = $db->prepare("
             SELECT s.*, 
                    sln.name as salon_name, 
@@ -36,7 +38,7 @@ if ($method === 'GET' && count($uriParts) === 1) {
             LEFT JOIN profiles p ON ur.user_id = p.user_id
             LEFT JOIN bookings b ON s.id = b.service_id
             LEFT JOIN booking_reviews r ON b.id = r.booking_id
-            WHERE s.is_active = 1 AND sln.is_active = 1
+            WHERE s.is_active = 1 AND sln.is_active = 1{$featuredQuery}
             GROUP BY s.id, sln.name, sln.city, sln.logo_url, sln.cover_image_url, p.full_name
             ORDER BY RAND()
         ");
@@ -124,8 +126,8 @@ if ($method === 'POST' && count($uriParts) === 1) {
 
     $serviceId = Auth::generateUuid();
     $stmt = $db->prepare("
-        INSERT INTO services (id, salon_id, name, description, price, duration_minutes, category, image_url, image_public_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO services (id, salon_id, name, description, price, duration_minutes, category, image_url, image_public_id, is_featured)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $serviceId,
@@ -136,7 +138,8 @@ if ($method === 'POST' && count($uriParts) === 1) {
         $data['duration_minutes'],
         $data['category'] ?? null,
         $data['image_url'] ?? null,
-        $data['image_public_id'] ?? null
+        $data['image_public_id'] ?? null,
+        isset($data['is_featured']) ? (int)$data['is_featured'] : 0
     ]);
 
     $stmt = $db->prepare("SELECT * FROM services WHERE id = ?");
@@ -167,7 +170,7 @@ if ($method === 'PUT' && count($uriParts) === 2) {
 
     $stmt = $db->prepare("
         UPDATE services SET
-            name = ?, description = ?, price = ?, duration_minutes = ?, category = ?, image_url = ?, image_public_id = ?, is_active = ?
+            name = ?, description = ?, price = ?, duration_minutes = ?, category = ?, image_url = ?, image_public_id = ?, is_active = ?, is_featured = ?
         WHERE id = ?
     ");
     $stmt->execute([
@@ -179,6 +182,7 @@ if ($method === 'PUT' && count($uriParts) === 2) {
         $data['image_url'] ?? null,
         $data['image_public_id'] ?? null,
         $data['is_active'] ?? 1,
+        isset($data['is_featured']) ? (int)$data['is_featured'] : 0,
         $serviceId
     ]);
 
